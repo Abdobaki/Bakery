@@ -6,16 +6,20 @@ export async function getDatabase(): Promise<any> {
   if (dbInstance) return dbInstance;
 
   if (Platform.OS === 'web') {
-    // Web Browser Mock Database Adapter for PC Preview
     dbInstance = createWebDatabaseAdapter();
     return dbInstance;
   }
 
-  // Native Mobile (Android / iOS) SQLite
-  const SQLite = await import('expo-sqlite');
-  dbInstance = await SQLite.openDatabaseAsync('bakery_v1.db');
-  await initTablesNative(dbInstance);
-  return dbInstance;
+  try {
+    const SQLite = await import('expo-sqlite');
+    dbInstance = await SQLite.openDatabaseAsync('bakery_v1.db');
+    await initTablesNative(dbInstance);
+    return dbInstance;
+  } catch (e) {
+    console.warn('Fallback to web preview database adapter:', e);
+    dbInstance = createWebDatabaseAdapter();
+    return dbInstance;
+  }
 }
 
 async function initTablesNative(db: any): Promise<void> {
@@ -288,9 +292,6 @@ async function seedInitialData(db: any): Promise<void> {
   `);
 }
 
-/**
- * In-memory fallback adapter for running the Expo mobile UI preview inside PC Web browsers.
- */
 function createWebDatabaseAdapter() {
   const store: Record<string, any[]> = {
     app_settings: [
