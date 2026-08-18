@@ -15,18 +15,22 @@ export async function getDatabase(): Promise<any> {
     dbInstance = await SQLite.openDatabaseAsync('bakery_v1.db');
     await initTablesNative(dbInstance);
     return dbInstance;
-  } catch (e) {
-    console.warn('Fallback to web preview database adapter:', e);
+  } catch (e: any) {
+    console.warn('Native SQLite init error, using web fallback:', e);
     dbInstance = createWebDatabaseAdapter();
     return dbInstance;
   }
 }
 
 async function initTablesNative(db: any): Promise<void> {
-  await db.execAsync(`
-    PRAGMA foreign_keys = ON;
+  try {
+    await db.execAsync('PRAGMA foreign_keys = ON;');
+  } catch (e) {
+    // Ignore PRAGMA errors on platforms that do not support it
+  }
 
-    CREATE TABLE IF NOT EXISTS app_settings (
+  const sqlStatements = [
+    `CREATE TABLE IF NOT EXISTS app_settings (
       id TEXT PRIMARY KEY DEFAULT 'main',
       bakery_name TEXT NOT NULL DEFAULT 'مخبزة الأصالة',
       address TEXT,
@@ -39,9 +43,8 @@ async function initTablesNative(db: any): Promise<void> {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING',
       uuid TEXT NOT NULL UNIQUE
-    );
-
-    CREATE TABLE IF NOT EXISTS users (
+    );`,
+    `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       username TEXT NOT NULL UNIQUE,
@@ -53,9 +56,8 @@ async function initTablesNative(db: any): Promise<void> {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS bread_types (
+    );`,
+    `CREATE TABLE IF NOT EXISTS bread_types (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
@@ -65,9 +67,8 @@ async function initTablesNative(db: any): Promise<void> {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS bread_price_history (
+    );`,
+    `CREATE TABLE IF NOT EXISTS bread_price_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       bread_type_id INTEGER NOT NULL,
@@ -77,9 +78,8 @@ async function initTablesNative(db: any): Promise<void> {
       changed_by_user_id INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS external_products (
+    );`,
+    `CREATE TABLE IF NOT EXISTS external_products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
@@ -90,9 +90,8 @@ async function initTablesNative(db: any): Promise<void> {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS external_product_price_history (
+    );`,
+    `CREATE TABLE IF NOT EXISTS external_product_price_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       product_id INTEGER NOT NULL,
@@ -103,9 +102,8 @@ async function initTablesNative(db: any): Promise<void> {
       changed_by_user_id INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS shifts (
+    );`,
+    `CREATE TABLE IF NOT EXISTS shifts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       date TEXT NOT NULL,
@@ -126,9 +124,8 @@ async function initTablesNative(db: any): Promise<void> {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS bread_trays (
+    );`,
+    `CREATE TABLE IF NOT EXISTS bread_trays (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       shift_id INTEGER NOT NULL,
@@ -140,9 +137,8 @@ async function initTablesNative(db: any): Promise<void> {
       voided_reason TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS bread_tray_items (
+    );`,
+    `CREATE TABLE IF NOT EXISTS bread_tray_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       tray_id INTEGER NOT NULL,
@@ -151,9 +147,8 @@ async function initTablesNative(db: any): Promise<void> {
       price_at_time REAL NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS inventory_movements (
+    );`,
+    `CREATE TABLE IF NOT EXISTS inventory_movements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       shift_id INTEGER NOT NULL,
@@ -168,9 +163,8 @@ async function initTablesNative(db: any): Promise<void> {
       is_voided INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS workers (
+    );`,
+    `CREATE TABLE IF NOT EXISTS workers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
@@ -180,9 +174,8 @@ async function initTablesNative(db: any): Promise<void> {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS worker_payments (
+    );`,
+    `CREATE TABLE IF NOT EXISTS worker_payments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       shift_id INTEGER NOT NULL,
@@ -196,9 +189,8 @@ async function initTablesNative(db: any): Promise<void> {
       voided_reason TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS expenses (
+    );`,
+    `CREATE TABLE IF NOT EXISTS expenses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       shift_id INTEGER NOT NULL,
@@ -213,9 +205,8 @@ async function initTablesNative(db: any): Promise<void> {
       voided_reason TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS daily_reports (
+    );`,
+    `CREATE TABLE IF NOT EXISTS daily_reports (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       date TEXT NOT NULL UNIQUE,
@@ -235,9 +226,8 @@ async function initTablesNative(db: any): Promise<void> {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-
-    CREATE TABLE IF NOT EXISTS audit_logs (
+    );`,
+    `CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       uuid TEXT NOT NULL UNIQUE,
       user_id INTEGER NOT NULL,
@@ -248,48 +238,60 @@ async function initTablesNative(db: any): Promise<void> {
       new_value TEXT,
       timestamp TEXT NOT NULL DEFAULT (datetime('now')),
       sync_status TEXT NOT NULL DEFAULT 'PENDING'
-    );
-  `);
+    );`
+  ];
+
+  for (const stmt of sqlStatements) {
+    try {
+      await db.execAsync(stmt);
+    } catch (err) {
+      console.warn('Table creation statement warning:', err);
+    }
+  }
 
   await seedInitialData(db);
 }
 
 async function seedInitialData(db: any): Promise<void> {
-  const settingsRow = await db.getFirstAsync('SELECT COUNT(*) as count FROM app_settings;');
-  if (settingsRow && settingsRow.count > 0) return;
+  try {
+    const settingsRow = await db.getFirstAsync('SELECT COUNT(*) as count FROM app_settings;');
+    if (settingsRow && settingsRow.count > 0) return;
 
-  await db.runAsync(
-    `INSERT INTO app_settings (id, bakery_name, address, phone, currency, currency_code, uuid)
-     VALUES ('main', 'مخبزة الأصالة', 'الجزائر العاصمة', '0550000000', 'د.ج', 'DZD', 'sett-001');`
-  );
+    await db.runAsync(
+      `INSERT INTO app_settings (id, bakery_name, address, phone, currency, currency_code, uuid)
+       VALUES ('main', 'مخبزة الأصالة', 'الجزائر العاصمة', '0550000000', 'د.ج', 'DZD', 'sett-001');`
+    );
 
-  await db.runAsync(`
-    INSERT INTO users (uuid, username, display_name, pin_hash, role) VALUES
-    ('u-1', 'owner', 'صاحب المخبزة (المالك)', '1234', 'OWNER'),
-    ('u-2', 'ahmed', 'أحمد (أمين صندوق صباحي)', '0000', 'CASHIER'),
-    ('u-3', 'mohamed', 'محمد (أمين صندوق مسائي)', '1111', 'CASHIER');
-  `);
+    await db.runAsync(`
+      INSERT INTO users (uuid, username, display_name, pin_hash, role) VALUES
+      ('u-1', 'owner', 'صاحب المخبزة (المالك)', '1234', 'OWNER'),
+      ('u-2', 'ahmed', 'أحمد (أمين صندوق صباحي)', '0000', 'CASHIER'),
+      ('u-3', 'mohamed', 'محمد (أمين صندوق مسائي)', '1111', 'CASHIER');
+    `);
 
-  await db.runAsync(`
-    INSERT INTO bread_types (uuid, name, current_price, sort_order) VALUES
-    ('b-1', 'خبز عادي (Pain ordinaire)', 15, 1),
-    ('b-2', 'خبز سيپار (Seppar)', 15, 2),
-    ('b-3', 'خبز سميد (Pain de semoule)', 20, 3),
-    ('b-4', 'خبز مدور (Round bread)', 25, 4);
-  `);
+    await db.runAsync(`
+      INSERT INTO bread_types (uuid, name, current_price, sort_order) VALUES
+      ('b-1', 'خبز عادي (Pain ordinaire)', 15, 1),
+      ('b-2', 'خبز سيپار (Seppar)', 15, 2),
+      ('b-3', 'خبز سميد (Pain de semoule)', 20, 3),
+      ('b-4', 'خبز مدور (Round bread)', 25, 4);
+    `);
 
-  await db.runAsync(`
-    INSERT INTO external_products (uuid, name, purchase_price, selling_price, sort_order) VALUES
-    ('p-1', 'كسرة (Kesra)', 35, 50, 1),
-    ('p-2', 'بيتزا كاري (Pizza carré)', 40, 60, 2),
-    ('p-3', 'كرواسون (Croissant)', 30, 45, 3);
-  `);
+    await db.runAsync(`
+      INSERT INTO external_products (uuid, name, purchase_price, selling_price, sort_order) VALUES
+      ('p-1', 'كسرة (Kesra)', 35, 50, 1),
+      ('p-2', 'بيتزا كاري (Pizza carré)', 40, 60, 2),
+      ('p-3', 'كرواسون (Croissant)', 30, 45, 3);
+    `);
 
-  await db.runAsync(`
-    INSERT INTO workers (uuid, name, payment_type) VALUES
-    ('w-1', 'علي الخباز', 'DAILY'),
-    ('w-2', 'مصطفى المساعد', 'DAILY');
-  `);
+    await db.runAsync(`
+      INSERT INTO workers (uuid, name, payment_type) VALUES
+      ('w-1', 'علي الخباز', 'DAILY'),
+      ('w-2', 'مصطفى المساعد', 'DAILY');
+    `);
+  } catch (e) {
+    console.warn('Seed data warning:', e);
+  }
 }
 
 function createWebDatabaseAdapter() {
