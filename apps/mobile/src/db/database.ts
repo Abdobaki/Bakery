@@ -1,15 +1,24 @@
-import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 
-let dbInstance: SQLite.SQLiteDatabase | null = null;
+let dbInstance: any = null;
 
-export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
+export async function getDatabase(): Promise<any> {
   if (dbInstance) return dbInstance;
+
+  if (Platform.OS === 'web') {
+    // Web Browser Mock Database Adapter for PC Preview
+    dbInstance = createWebDatabaseAdapter();
+    return dbInstance;
+  }
+
+  // Native Mobile (Android / iOS) SQLite
+  const SQLite = await import('expo-sqlite');
   dbInstance = await SQLite.openDatabaseAsync('bakery_v1.db');
-  await initTables(dbInstance);
+  await initTablesNative(dbInstance);
   return dbInstance;
 }
 
-async function initTables(db: SQLite.SQLiteDatabase): Promise<void> {
+async function initTablesNative(db: any): Promise<void> {
   await db.execAsync(`
     PRAGMA foreign_keys = ON;
 
@@ -241,17 +250,15 @@ async function initTables(db: SQLite.SQLiteDatabase): Promise<void> {
   await seedInitialData(db);
 }
 
-async function seedInitialData(db: SQLite.SQLiteDatabase): Promise<void> {
-  const settingsRow = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM app_settings;');
+async function seedInitialData(db: any): Promise<void> {
+  const settingsRow = await db.getFirstAsync('SELECT COUNT(*) as count FROM app_settings;');
   if (settingsRow && settingsRow.count > 0) return;
 
-  // Insert default App Settings
   await db.runAsync(
     `INSERT INTO app_settings (id, bakery_name, address, phone, currency, currency_code, uuid)
      VALUES ('main', 'مخبزة الأصالة', 'الجزائر العاصمة', '0550000000', 'د.ج', 'DZD', 'sett-001');`
   );
 
-  // Insert default Users (Owner + 2 Cashiers)
   await db.runAsync(`
     INSERT INTO users (uuid, username, display_name, pin_hash, role) VALUES
     ('u-1', 'owner', 'صاحب المخبزة (المالك)', '1234', 'OWNER'),
@@ -259,7 +266,6 @@ async function seedInitialData(db: SQLite.SQLiteDatabase): Promise<void> {
     ('u-3', 'mohamed', 'محمد (أمين صندوق مسائي)', '1111', 'CASHIER');
   `);
 
-  // Insert Bread types
   await db.runAsync(`
     INSERT INTO bread_types (uuid, name, current_price, sort_order) VALUES
     ('b-1', 'خبز عادي (Pain ordinaire)', 15, 1),
@@ -268,7 +274,6 @@ async function seedInitialData(db: SQLite.SQLiteDatabase): Promise<void> {
     ('b-4', 'خبز مدور (Round bread)', 25, 4);
   `);
 
-  // Insert External products
   await db.runAsync(`
     INSERT INTO external_products (uuid, name, purchase_price, selling_price, sort_order) VALUES
     ('p-1', 'كسرة (Kesra)', 35, 50, 1),
@@ -276,10 +281,108 @@ async function seedInitialData(db: SQLite.SQLiteDatabase): Promise<void> {
     ('p-3', 'كرواسون (Croissant)', 30, 45, 3);
   `);
 
-  // Insert Workers
   await db.runAsync(`
     INSERT INTO workers (uuid, name, payment_type) VALUES
     ('w-1', 'علي الخباز', 'DAILY'),
     ('w-2', 'مصطفى المساعد', 'DAILY');
   `);
+}
+
+/**
+ * In-memory fallback adapter for running the Expo mobile UI preview inside PC Web browsers.
+ */
+function createWebDatabaseAdapter() {
+  const store: Record<string, any[]> = {
+    app_settings: [
+      {
+        id: 'main',
+        bakery_name: 'مخبزة الأصالة',
+        address: 'الجزائر العاصمة',
+        phone: '0550000000',
+        currency: 'د.ج',
+        currency_code: 'DZD',
+        morning_shift_name: 'الوردية الصباحية',
+        evening_shift_name: 'الوردية المسائية',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        sync_status: 'PENDING'
+      }
+    ],
+    users: [
+      { id: 1, uuid: 'u-1', username: 'owner', display_name: 'صاحب المخبزة (المالك)', pin_hash: '1234', role: 'OWNER', is_active: 1, created_at: '', updated_at: '', sync_status: 'PENDING' },
+      { id: 2, uuid: 'u-2', username: 'ahmed', display_name: 'أحمد (أمين صندوق صباحي)', pin_hash: '0000', role: 'CASHIER', is_active: 1, created_at: '', updated_at: '', sync_status: 'PENDING' },
+      { id: 3, uuid: 'u-3', username: 'mohamed', display_name: 'محمد (أمين صندوق مسائي)', pin_hash: '1111', role: 'CASHIER', is_active: 1, created_at: '', updated_at: '', sync_status: 'PENDING' }
+    ],
+    bread_types: [
+      { id: 1, uuid: 'b-1', name: 'خبز عادي (Pain ordinaire)', current_price: 15, is_active: 1, sort_order: 1 },
+      { id: 2, uuid: 'b-2', name: 'خبز سيپار (Seppar)', current_price: 15, is_active: 1, sort_order: 2 },
+      { id: 3, uuid: 'b-3', name: 'خبز سميد (Pain de semoule)', current_price: 20, is_active: 1, sort_order: 3 },
+      { id: 4, uuid: 'b-4', name: 'خبز مدور (Round bread)', current_price: 25, is_active: 1, sort_order: 4 }
+    ],
+    external_products: [
+      { id: 1, uuid: 'p-1', name: 'كسرة (Kesra)', purchase_price: 35, selling_price: 50, is_active: 1, sort_order: 1 },
+      { id: 2, uuid: 'p-2', name: 'بيتزا كاري (Pizza carré)', purchase_price: 40, selling_price: 60, is_active: 1, sort_order: 2 },
+      { id: 3, uuid: 'p-3', name: 'كرواسون (Croissant)', purchase_price: 30, selling_price: 45, is_active: 1, sort_order: 3 }
+    ],
+    workers: [
+      { id: 1, uuid: 'w-1', name: 'علي الخباز', payment_type: 'DAILY', is_active: 1 },
+      { id: 2, uuid: 'w-2', name: 'مصطفى المساعد', payment_type: 'DAILY', is_active: 1 }
+    ],
+    shifts: [],
+    bread_trays: [],
+    bread_tray_items: [],
+    inventory_movements: [],
+    worker_payments: [],
+    expenses: [],
+    daily_reports: [],
+    audit_logs: []
+  };
+
+  return {
+    async execAsync() {},
+    async getFirstAsync(sql: string, params: any[] = []) {
+      const all = await this.getAllAsync(sql, params);
+      return all[0] || null;
+    },
+    async getAllAsync(sql: string, params: any[] = []) {
+      const lower = sql.toLowerCase();
+      if (lower.includes('from app_settings')) return store.app_settings;
+      if (lower.includes('from users')) return store.users;
+      if (lower.includes('from bread_types')) return store.bread_types;
+      if (lower.includes('from external_products')) return store.external_products;
+      if (lower.includes('from workers')) return store.workers;
+      if (lower.includes('from shifts')) return store.shifts;
+      if (lower.includes('from bread_trays')) return store.bread_trays;
+      if (lower.includes('from inventory_movements')) return store.inventory_movements;
+      if (lower.includes('from worker_payments')) return store.worker_payments;
+      if (lower.includes('from expenses')) return store.expenses;
+      if (lower.includes('from daily_reports')) return store.daily_reports;
+      if (lower.includes('from audit_logs')) return store.audit_logs;
+      return [];
+    },
+    async runAsync(sql: string, params: any[] = []) {
+      const lower = sql.toLowerCase();
+      const id = Date.now();
+      if (lower.includes('into shifts')) {
+        const item = { id, uuid: params[0], date: params[1], shift_type: params[2], cashier_id: params[3], status: 'OPEN', started_at: new Date().toISOString() };
+        store.shifts.push(item);
+      } else if (lower.includes('into bread_trays')) {
+        const item = { id, uuid: params[0], shift_id: params[1], tray_number: params[2], recorded_by_user_id: params[3], notes: params[4], recorded_at: new Date().toISOString() };
+        store.bread_trays.push(item);
+      } else if (lower.includes('into bread_tray_items')) {
+        const item = { id, uuid: params[0], tray_id: params[1], bread_type_id: params[2], quantity: params[3], price_at_time: params[4] };
+        store.bread_tray_items.push(item);
+      } else if (lower.includes('into inventory_movements')) {
+        const item = { id, uuid: params[0], shift_id: params[1], product_id: params[2], movement_type: params[3], quantity: params[4], purchase_price_at_time: params[5], selling_price_at_time: params[6], recorded_by_user_id: params[7], notes: params[8] };
+        store.inventory_movements.push(item);
+      } else if (lower.includes('into worker_payments')) {
+        const item = { id, uuid: params[0], shift_id: params[1], worker_id: params[2], amount: params[3], payment_type: params[4], recorded_by_user_id: params[5], notes: params[6] };
+        store.worker_payments.push(item);
+      } else if (lower.includes('into expenses')) {
+        const item = { id, uuid: params[0], shift_id: params[1], title: params[2], amount: params[3], category: params[4], recorded_by_user_id: params[5], notes: params[6] };
+        store.expenses.push(item);
+      }
+      return { lastInsertRowId: id };
+    }
+  };
 }
